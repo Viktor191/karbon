@@ -1,2 +1,7 @@
 node_modules
 .idea
+new_links.json
+removed_links.json
+seller_data.csv
+seller_links.json
+seller_links_previous.json

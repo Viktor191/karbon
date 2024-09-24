@@ -4,6 +4,17 @@ import fs from 'fs/promises';
 (async () => {
     let browser;
     try {
+        // Читаем предыдущий список ссылок, если файл существует
+        let previousLinks = [];
+        let isFirstRun = false;
+        try {
+            const previousData = await fs.readFile('seller_links.json', 'utf-8');
+            previousLinks = JSON.parse(previousData);
+        } catch (error) {
+            console.log('Предыдущий список ссылок не найден. Это первый запуск.');
+            isFirstRun = true;
+        }
+
         // Запускаем браузер в видимом режиме
         browser = await puppeteer.launch({ headless: false });
         const page = await browser.newPage();
@@ -61,7 +72,7 @@ import fs from 'fs/promises';
                         );
 
                         // Ждём, пока появятся новые ссылки
-                        await page.waitForSelector('a.group.relative');
+                        await new Promise(resolve => setTimeout(resolve, 2000)); // Ждём 2 секунды для загрузки новых элементов
                     } else {
                         hasNextPage = false;
                         console.log('Достигнута последняя страница.');
@@ -79,9 +90,33 @@ import fs from 'fs/promises';
         // Преобразуем Set в массив
         const linksArray = Array.from(allLinks);
 
-        // Сохраняем ссылки в файл
+        // Сохраняем предыдущий список ссылок перед перезаписью
+        if (!isFirstRun) {
+            await fs.writeFile('seller_links_previous.json', JSON.stringify(previousLinks, null, 2));
+        }
+
+        // Сохраняем текущий список ссылок
         await fs.writeFile('seller_links.json', JSON.stringify(linksArray, null, 2));
         console.log('Ссылки успешно сохранены в файл seller_links.json');
+
+        // Сравниваем текущие ссылки с предыдущими
+        let addedLinks = [];
+        let removedLinks = [];
+        if (!isFirstRun) {
+            // Если это не первый запуск, сравниваем списки
+            addedLinks = linksArray.filter(link => !previousLinks.includes(link));
+            removedLinks = previousLinks.filter(link => !linksArray.includes(link));
+
+            console.log(`Новых ссылок: ${addedLinks.length}`);
+            console.log(`Удаленных ссылок: ${removedLinks.length}`);
+
+            // Сохраняем новые и удаленные ссылки для дальнейшего использования
+            await fs.writeFile('new_links.json', JSON.stringify(addedLinks, null, 2));
+            await fs.writeFile('removed_links.json', JSON.stringify(removedLinks, null, 2));
+        } else {
+            // Первый запуск, считаем, что нет новых или удаленных ссылок
+            console.log('Первый запуск, сравнение ссылок не выполняется.');
+        }
 
         // Закрываем браузер
         await browser.close();
